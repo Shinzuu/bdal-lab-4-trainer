@@ -99,29 +99,97 @@ function modStatus(p, id) {
 
 function renderHome() {
   if (!getOS()) return renderOSPicker();
+  var os = getOS();
   var p = getProgress();
+  var cmds = [];   // copy-button payloads collected while rendering
+  var prompts = []; // AI prompts per module
+
+  // --- article header + how-to + TOC ---
+  var html = '<div class="hero blog-hero">' +
+    '<h1>The BDAL labs, start to finish.<span class="cursor"></span></h1>' +
+    '<p>You are reading the <strong>' + esc(OS_META[os].name) + '</strong> version — wrong machine? Switch with the button top-right. ' +
+    'Read top to bottom: every command has a copy button, its expected output, what you may change, what you must NOT touch, and what to do when it breaks. ' +
+    'Practice (optional, recommended) waits at the <a href="#practice">bottom</a>.</p>' +
+    '</div>';
+
+  html += '<div class="howto">' +
+    '<span class="glabel">how to use this page</span>' +
+    '<ol>' +
+    '<li><strong>Copy, paste, compare.</strong> Run each command in YOUR terminal, compare with the “expected output” box. Match → next command. No match → that module\u2019s troubleshooting table.</li>' +
+    '<li><strong>Yellow “adapt it” boxes</strong> tell you which parts are yours to change (your folders, your paths) and which parts must stay EXACTLY as written (HDFS names like /bda3, file names, class names).</li>' +
+    '<li><strong>Still stuck?</strong> Every module ends with a ready-made AI prompt — copy it, fill in your command + error, paste into ChatGPT/Gemini/any AI. It links this guide so the AI has full context.</li>' +
+    '</ol></div>';
+
+  var toc = lessons.MODULES.map(function (m, i) {
+    return '<a href="#mod' + (i + 1) + '">' + (i + 1) + '. ' + esc(m.title) + '</a>';
+  }).join('');
+  html += '<nav class="toc"><span class="glabel">on this page</span>' + toc +
+    '<a href="#practice">6. Practice (optional)</a></nav>';
+
+  // --- one blog section per module ---
+  lessons.MODULES.forEach(function (m, mi) {
+    var state = m.setup(engine, os);
+    html += '<section class="blogsec" id="mod' + (mi + 1) + '">';
+    html += '<h2><span class="modnum">part ' + (mi + 1) + '</span> ' + esc(m.title) + '</h2>';
+    if (m.intro) html += '<div class="theory"><span class="glabel">before you start</span>' + md(m.intro) + '</div>';
+    m.steps.forEach(function (step, i) {
+      var cmd = step.answer(os);
+      var result = engine.runCommand(state, cmd);
+      html += '<div class="gstep">';
+      html += '<div class="gnum">step ' + (i + 1) + ' / ' + m.steps.length + ' — ' + md(step.question) + '</div>';
+      if (step.theory) html += '<div class="theory">' + md(step.theory) + '</div>';
+      if (step.note) html += '<div class="note">' + md(step.note) + '</div>';
+      html += '<div class="gcmd"><code>' + esc(cmd) + '</code><button class="copybtn" data-ci="' + cmds.length + '">copy</button></div>';
+      cmds.push(cmd);
+      if (step.adapt) html += '<div class="adapt"><span class="glabel">adapt it — change / don\u2019t change</span>' + md(step.adapt) + '</div>';
+      if (step.anatomy) {
+        var rows = step.anatomy(os).map(function (r) {
+          return '<div class="arow"><code>' + esc(r[0]) + '</code><span>' + esc(r[1]) + '</span></div>';
+        }).join('');
+        html += '<div class="anatomy"><div class="alabel">word by word</div>' + rows + '</div>';
+      }
+      if (result.output) html += '<div class="gout"><span class="glabel">expected output</span>' + esc(result.output) + '</div>';
+      if (step.expect) html += '<div class="expectbox"><span class="glabel">what to expect / not expect</span>' + md(step.expect) + '</div>';
+      html += '</div>';
+    });
+    if (m.outcome) html += '<div class="outcome"><span class="glabel">outcome — how you know it worked</span>' + md(m.outcome) + '</div>';
+    if (m.troubleshooting) {
+      var trows = m.troubleshooting.map(function (t) {
+        return '<div class="trow"><div class="terr">' + md(t[0]) + '</div><div class="tfix">' + md(t[1]) + '</div></div>';
+      }).join('');
+      html += '<div class="trouble"><div class="alabel">troubleshooting — when it goes wrong</div>' + trows + '</div>';
+    }
+    var promptText = lessons.aiPrompt(m, os);
+    html += '<div class="aibox"><span class="glabel">still stuck? ask an AI — copy this, fill the blanks, paste into ChatGPT</span>' +
+      '<pre>' + esc(promptText) + '</pre>' +
+      '<button class="btn ghost aicopy" data-pi="' + prompts.length + '">Copy AI prompt</button></div>';
+    prompts.push(promptText);
+    html += '<div class="btnrow secactions"><button class="btn" data-run="guided" data-mod="' + mi + '">\u2328 Practice this part</button></div>';
+    html += '</section>';
+  });
+
+  // --- optional practice section ---
   var mods = lessons.MODULES.map(function (m, i) {
     var st = p[m.id] || {};
     return '<div class="modcard">' +
-      '<span class="modnum">module ' + (i + 1) + '</span>' +
+      '<span class="modnum">part ' + (i + 1) + '</span>' +
       '<h2>' + esc(m.title) + '</h2>' +
       '<p class="sub">' + esc(m.subtitle) + '  ' + modStatus(p, m.id) + '</p>' +
       '<div class="btnrow">' +
-      '<button class="btn ghost" data-guide="' + i + '">\ud83d\udcd6 Guide</button>' +
       '<button class="btn" data-run="guided" data-mod="' + i + '">' + (st.guided ? 'Redo practice' : 'Practice') + '</button>' +
       '<button class="btn ghost" data-run="recap" data-mod="' + i + '" ' + (st.guided ? '' : 'disabled') + '>Recap round</button>' +
       '</div>' +
-      (st.guided ? '' : '<p class="lockhint">Guide = read it with expected outputs + troubleshooting. Practice = type it. Recap unlocks after practice.</p>') +
+      (st.guided ? '' : '<p class="lockhint">Recap unlocks after practice — same commands, new paths, from memory.</p>') +
       '</div>';
   }).join('');
   var allRecaps = lessons.MODULES.every(function (m) { return (p[m.id] || {}).recap; });
   var exam = '<div class="modcard">' +
     '<span class="modnum">final</span>' +
     '<h2>Exam mode</h2>' +
-    '<p class="sub">Preflight + Lab 2 + Weather CSV + Pig start to finish, fresh cluster, no theory. Hints only after two misses.' +
+    '<p class="sub">Everything above start to finish, fresh cluster, no theory. Hints only after two misses.' +
     (p.examBest != null ? '  <span class="done">best: ' + p.examBest + '%</span>' : '') + '</p>' +
     '<div class="btnrow"><button class="btn" id="run-exam" ' + (allRecaps ? '' : 'disabled') + '>Start exam</button></div>' +
-    (allRecaps ? '' : '<p class="lockhint">Unlocks when every module\u2019s recap round is done.</p>') +
+    (allRecaps ? '' : '<p class="lockhint">Unlocks when every part\u2019s recap round is done.</p>') +
     '</div>';
   var sandbox = '<div class="modcard">' +
     '<span class="modnum">free play</span>' +
@@ -129,23 +197,29 @@ function renderHome() {
     '<p class="sub">An open simulated terminal — same cluster, no questions. Try anything.</p>' +
     '<div class="btnrow"><button class="btn ghost" id="run-sandbox">Open sandbox</button></div>' +
     '</div>';
-  app.innerHTML = headerHTML() +
-    '<div class="modlist">' + mods + exam + sandbox + '</div>' +
-    '<div class="footer">Simulator for practice — commands behave like the real lab, output is faithful but canned. ' +
+  html += '<section class="blogsec" id="practice">' +
+    '<h2><span class="modnum">optional</span> Practice — type it before the lab</h2>' +
+    '<p class="practicelead">Reading is not remembering. Each part above has a practice mode: the same steps in a simulated terminal that behaves like the real lab — it even fails like the real lab. Strongly recommended the night before.</p>' +
+    '<div class="modlist">' + mods + exam + sandbox + '</div></section>';
+
+  html += '<div class="footer">Commands behave like the real lab; outputs are faithful but canned. ' +
     'Earlier labs (incl. matrix multiplication): <a href="https://shinzuu.github.io/bdal-playground/">bdal-playground</a> · kit: <a href="https://github.com/shinzuu/hadoop-bdal-lab-kit">hadoop-bdal-lab-kit</a>. ' +
     'Weather program + Pig lab credit: <a href="https://github.com/hossain-tamim/big_data_analytics_lab">hossain-tamim</a>. ' +
     'AI-friendly full guide: <a href="llms.txt">llms.txt</a>. ' +
     '<button id="reset-progress">Reset progress</button></div>';
+
+  app.innerHTML = headerHTML() + html;
   bindHeader();
+  Array.prototype.forEach.call(document.querySelectorAll('.copybtn'), function (el) {
+    el.onclick = function () { copyText(cmds[parseInt(el.getAttribute('data-ci'), 10)], el); };
+  });
+  Array.prototype.forEach.call(document.querySelectorAll('.aicopy'), function (el) {
+    el.onclick = function () { copyText(prompts[parseInt(el.getAttribute('data-pi'), 10)], el, '\u2713 copied — fill the blanks, then paste into your AI'); };
+  });
   Array.prototype.forEach.call(document.querySelectorAll('[data-run]'), function (el) {
     el.onclick = function () {
       var m = lessons.MODULES[parseInt(el.getAttribute('data-mod'), 10)];
       startRun(el.getAttribute('data-run'), m);
-    };
-  });
-  Array.prototype.forEach.call(document.querySelectorAll('[data-guide]'), function (el) {
-    el.onclick = function () {
-      renderGuide(lessons.MODULES[parseInt(el.getAttribute('data-guide'), 10)]);
     };
   });
   var ex = document.getElementById('run-exam');
@@ -156,56 +230,7 @@ function renderHome() {
   };
 }
 
-// ---------- guide view (read: prereqs -> commands + expected output -> outcome -> troubleshooting) ----------
-
-function renderGuide(mod) {
-  var os = getOS();
-  var state = mod.setup(engine, os);
-  var cmds = [];
-  var html = '<div class="runhead"><span class="runtitle">' + esc(mod.title) + ' — guide (' + esc(OS_META[os].name) + ')</span></div>';
-  if (mod.intro) html += '<div class="theory"><span class="glabel">prerequisites</span>' + md(mod.intro) + '</div>';
-  mod.steps.forEach(function (step, i) {
-    var cmd = step.answer(os);
-    var result = engine.runCommand(state, cmd);
-    html += '<div class="gstep">';
-    html += '<div class="gnum">step ' + (i + 1) + ' / ' + mod.steps.length + ' — ' + md(step.question) + '</div>';
-    if (step.theory) html += '<div class="theory">' + md(step.theory) + '</div>';
-    if (step.note) html += '<div class="note">' + md(step.note) + '</div>';
-    html += '<div class="gcmd"><code>' + esc(cmd) + '</code><button class="copybtn" data-ci="' + cmds.length + '">copy</button></div>';
-    cmds.push(cmd);
-    if (step.anatomy) {
-      var rows = step.anatomy(os).map(function (r) {
-        return '<div class="arow"><code>' + esc(r[0]) + '</code><span>' + esc(r[1]) + '</span></div>';
-      }).join('');
-      html += '<div class="anatomy"><div class="alabel">word by word</div>' + rows + '</div>';
-    }
-    if (result.output) html += '<div class="gout"><span class="glabel">expected output</span>' + esc(result.output) + '</div>';
-    html += '</div>';
-  });
-  if (mod.outcome) html += '<div class="outcome"><span class="glabel">outcome — how you know it worked</span>' + md(mod.outcome) + '</div>';
-  if (mod.troubleshooting) {
-    var trows = mod.troubleshooting.map(function (t) {
-      return '<div class="trow"><div class="terr">' + md(t[0]) + '</div><div class="tfix">' + md(t[1]) + '</div></div>';
-    }).join('');
-    html += '<div class="trouble"><div class="alabel">troubleshooting — when it goes wrong</div>' + trows + '</div>';
-  }
-  html += '<div class="btnrow guide-actions">' +
-    '<button class="btn" id="guide-practice">Practice it now →</button>' +
-    '<button class="btn ghost" id="copy-md">Copy guide as Markdown (for AI help)</button>' +
-    '<button class="btn ghost" id="back-home">Menu</button></div>';
-  app.innerHTML = headerHTML() + '<div class="guide">' + html + '</div>';
-  bindHeader();
-  Array.prototype.forEach.call(document.querySelectorAll('.copybtn'), function (el) {
-    el.onclick = function () {
-      copyText(cmds[parseInt(el.getAttribute('data-ci'), 10)], el);
-    };
-  });
-  document.getElementById('guide-practice').onclick = function () { startRun('guided', mod); };
-  document.getElementById('back-home').onclick = function () { renderHome(); };
-  document.getElementById('copy-md').onclick = function () {
-    copyText(lessons.guideMarkdown(engine, os), document.getElementById('copy-md'), 'copied — paste into any AI chat');
-  };
-}
+// ---------- clipboard helpers ----------
 
 function copyText(text, btn, doneLabel) {
   function done() {

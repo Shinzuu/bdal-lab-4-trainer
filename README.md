@@ -1,13 +1,20 @@
 # BDAL Lab 4 Trainer
 
-**Guide + practice.** A single-file trainer for the newer BDAL (Big Data Analytics Lab)
-experiments: install preflight, cluster startup, HDFS commands (Lab 2), the **Weather-CSV
-MapReduce job (Lab 4)** and **Apache Pig**. Every module has two faces:
+**One long article + optional practice.** A single-file blog-style walkthrough of the
+newer BDAL (Big Data Analytics Lab) experiments — install preflight, cluster startup, HDFS
+commands (Lab 2), the **Weather-CSV MapReduce job (Lab 4)** and **Apache Pig** — written in
+**three versions** (Linux/WSL2, macOS, native Windows), selected up front. Read top to
+bottom; each step gives you:
 
-- **📖 Guide** — read it: prerequisites → every command (with copy button) → its expected
-  output → the outcome that proves it worked → a troubleshooting table for when it doesn't.
-- **⌨ Practice** — type it: the same steps in a **simulated terminal** that behaves like
-  the real lab, with word-by-word command anatomy, hints, recaps and a scored exam.
+- the exact command with a **copy button**, broken down word by word
+- its **expected output** (produced by actually running the simulator)
+- an **"adapt it" box** — where your values come from, what you may change, what you must NOT touch
+- a **"what to expect / not expect" box** — normal noise vs. real problems
+- per part: prerequisites up front, an **outcome** check, a **troubleshooting** table, and a
+  ready-made **AI prompt** (copy → fill your error → paste into ChatGPT/any LLM)
+
+At the bottom sits the **optional practice section**: the same steps in a **simulated
+terminal** that behaves (and fails) like the real lab, with hints, recaps and a scored exam.
 
 Guide and practice are generated from the SAME lesson data, and the guide's "expected
 output" blocks come from actually running the simulator — they cannot drift apart.

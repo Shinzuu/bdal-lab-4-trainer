@@ -31,6 +31,12 @@ function cwdHas(state, name) {
 
 function isWin(os) { return os === 'windows'; }
 
+// attach blog-side help fields (adapt / expect) onto a step
+function H(step, extra) {
+  for (var k in extra) step[k] = extra[k];
+  return step;
+}
+
 // canonical per-OS fragments
 function startCmd(os) { return isWin(os) ? 'start-all.cmd' : 'hadoop-start'; }
 function kitCd(os) { return isWin(os) ? 'cd C:/BDA' : 'cd ~/kit/Lab-2-HDFS-Basic-Commands'; }
@@ -485,10 +491,19 @@ var MODULES = [
     ],
     setup: function (engine, os) { return engine.createState(os); },
     steps: [
-      stepJavaVersion(),
-      stepHadoopVersion(),
-      stepEchoHome(),
-      stepPigVersion({ theory: 'Pig setup = download pig-0.17.0.tar.gz → extract → export PIG_HOME=<folder> and add $PIG_HOME/bin to PATH. Then this one command is the proof the lab sheet asks for.' })
+      H(stepJavaVersion(), {
+        expect: 'Any 11.0.x on Linux/Mac (or 1.8.0_x on native Windows) is fine — the exact build numbers WILL differ from this guide, that is normal. “command not found” or version 17+ = fix before continuing (troubleshooting below).'
+      }),
+      H(stepHadoopVersion(), {
+        expect: '3.4.1 on Linux/Mac installs, 3.3.6 on the native-Windows manual setup. Any 3.x works for these labs; a 2.x means you followed a very old manual.'
+      }),
+      H(stepEchoHome(), {
+        adapt: 'YOUR path will differ from the guide — it is wherever YOU extracted Hadoop. Find yours: Linux/Mac → look where you unpacked it (e.g. `ls ~/bigdata`); Windows → System Properties → Environment Variables. Change only the VALUE if wrong — NEVER the variable name HADOOP_HOME.',
+        expect: 'A real folder path. An empty line means the variable is not set in THIS shell — new terminal or source your env file.'
+      }),
+      H(stepPigVersion({ theory: 'Pig setup = download pig-0.17.0.tar.gz → extract → export PIG_HOME=<folder> and add $PIG_HOME/bin to PATH. Then this one command is the proof the lab sheet asks for.' }), {
+        expect: 'Version 0.17.0, compiled 2017. Yes, that old — it is the current release. The old date is NOT a problem.'
+      })
     ]
   },
   {
@@ -505,9 +520,15 @@ var MODULES = [
     ],
     setup: function (engine, os) { return engine.createState(os); },
     steps: [
-      stepStart(),
-      stepJps(),
-      stepLsRoot('Found 2 items')
+      H(stepStart(), {
+        expect: 'Several “Starting …” lines. Daemons need ~10 seconds to settle. Do NOT expect instant — if jps looks short right after, wait 5 seconds and jps again before panicking.'
+      }),
+      H(stepJps(), {
+        expect: 'The NUMBERS (process ids) are different every time and will never match this guide — only the NAMES matter. Count them: 5 on Linux/Mac, 4 on native Windows.'
+      }),
+      H(stepLsRoot('Found 2 items'), {
+        expect: 'On a fresh cluster: /tmp and /user. A WARN NativeCodeLoader line above the listing appears on nearly every machine — it is noise, not an error.'
+      })
     ]
   },
   {
@@ -532,8 +553,13 @@ var MODULES = [
       stepMkdir('/dir1', '-mkdir creates a directory in HDFS — on the cluster, not on your disk.'),
       stepLs('/', '/dir1'),
       stepMkdir('/dir1/newdir', 'Paths nest exactly like a normal filesystem — a directory inside a directory.'),
-      stepCd(kitCd, 'The sample files live on your LOCAL disk. Local paths with SPACES break Hadoop commands — so we cd into the folder and use bare filenames.'),
-      stepPut('command3.txt', '/dir1', { theory: 'Local → HDFS is -copyFromLocal: local source first, HDFS destination second.' }),
+      H(stepCd(kitCd, 'The sample files live on your LOCAL disk. Local paths with SPACES break Hadoop commands — so we cd into the folder and use bare filenames.'), {
+        adapt: 'This path is OUR sample layout — use the folder where YOU actually saved the lab files. Replace everything after `cd` with your own path. Spaces in a path? Quote it — or better, move the files somewhere space-free.'
+      }),
+      H(stepPut('command3.txt', '/dir1', { theory: 'Local → HDFS is -copyFromLocal: local source first, HDFS destination second.' }), {
+        adapt: 'The filename must match EXACTLY, including case — command3.txt is not Command3.txt.',
+        expect: 'Just a WARN line (or nothing) = success. Hadoop is loud about failure and silent about success.'
+      }),
       stepLs('/dir1', 'command3.txt'),
       stepLocalMkdir('downloaded'),
       stepGet('/dir1/command3.txt', 'downloaded', { theory: 'HDFS → local is -copyToLocal — the exact mirror of -copyFromLocal.' }),
@@ -567,16 +593,29 @@ var MODULES = [
       return s;
     },
     steps: [
-      stepMkdir('/bda3', 'The job reads its input FROM HDFS — give it a home there first. The lecturer names this directory /bda3; keep his names so his checks match.'),
-      stepWeatherCd(),
+      H(stepMkdir('/bda3', 'The job reads its input FROM HDFS — give it a home there first. The lecturer names this directory /bda3; keep his names so his checks match.'), {
+        adapt: 'Keep the name /bda3 EXACTLY as the lecturer wrote it — not bda3, not /bda-3, not /BDA3. He checks with his own paths.'
+      }),
+      H(stepWeatherCd(), {
+        adapt: 'Your folder can live anywhere — what matters: Weather.csv AND WeatherDataProcessor.java in the SAME folder, and you standing in it. Get the two files from the lecturer’s repo: github.com/hossain-tamim/big_data_analytics_lab.'
+      }),
       stepCatLocal('Weather.csv', '2025-03-01, 32, 55, Clear', 'Weather.csv is the dataset: 31 days, one per line, format date, temperature, humidity, condition. (Humidity is read but never used — a favourite viva question.)'),
       stepPut('Weather.csv', '/bda3', { theory: 'Same -copyFromLocal as Lab 2 — a CSV is just a file to HDFS.' }),
       stepLs('/bda3', 'Weather.csv'),
-      stepJavacW(),
-      stepJarW(),
-      stepRunJobW('/bda3/Weather.csv', '/Weather_output'),
+      H(stepJavacW(), {
+        adapt: 'Copy the -classpath part EXACTLY — do not retype the quotes by hand. Do NOT rename the .java file (the public class name must equal the file name). Customizing the six weatherMessage.set("…") strings is required in the real lab — change ONLY the text inside the quotes, never the if/else logic.',
+        expect: 'NO output at all = success. javac only speaks when something is wrong.'
+      }),
+      H(stepJarW(), {
+        expect: '-cf prints nothing; -cvf lists each file it adds. Either way, `ls` afterwards must show WeatherDataProcessor.jar.'
+      }),
+      H(stepRunJobW('/bda3/Weather.csv', '/Weather_output'), {
+        expect: 'A FLOOD of INFO lines is normal — do not panic and do not Ctrl+C. Watch for: map 0% → 100%, then reduce → 100%, then “completed successfully”. Takes ~20–60 s on lab machines.'
+      }),
       stepLs('/Weather_output', 'part-r-00000'),
-      stepReadResultW('/Weather_output')
+      H(stepReadResultW('/Weather_output'), {
+        expect: 'This guide shows the ORIGINAL handout messages. If you customized your six strings (you must, in the real lab), your TEXT will differ — but the PATTERN of which date gets which category must match this exactly. 31 lines, date-sorted, no Cold Day.'
+      })
     ]
   },
   {
@@ -595,12 +634,16 @@ var MODULES = [
     setup: function (engine, os) { return engine.createState(os); },
     steps: [
       stepPigVersion({ theory: 'This lab needs NO cluster — Pig local mode works on plain files. But first, the ritual: prove pig answers.' }),
-      stepPigCd(),
+      H(stepPigCd(), {
+        adapt: 'Any folder works — but ALL THREE files (students.csv, scores.csv, script.pig) must sit in it together, and you must cd there BEFORE running pig. The script’s LOAD paths are relative to where you stand.'
+      }),
       stepPigLs(),
       stepCatLocal('students.csv', '2,Alice,19,B', 'Two tiny CSVs drive everything. students.csv: id, name, age, grade.'),
       stepCatLocal('script.pig', 'FILTER students BY age > 18',
         'Read the script before running it. LOAD names the columns and types; then one line per operation: FILTER, FOREACH/GENERATE (that is “project”), ORDER, GROUP, JOIN; DUMP prints a result to the screen.'),
-      stepPigRun()
+      H(stepPigRun(), {
+        expect: 'Real Pig prints PAGES of INFO logs before and between the answers — the guide shows the short version. Scroll to find the (…) tuple lines after each DUMP. Order INSIDE the { } bags may vary run to run; the values must not.'
+      })
     ]
   }
 ];
@@ -613,6 +656,8 @@ function stripTheory(step) {
   delete s.theory;
   delete s.anatomy;
   delete s.note;
+  delete s.adapt;
+  delete s.expect;
   return s;
 }
 
@@ -686,6 +731,18 @@ function buildExam() {
 
 function examSetup(engine, os) { return engine.createState(os); }
 
+// ---------- AI-help prompt (per module, ready to paste into any LLM) ----------
+
+function aiPrompt(m, os) {
+  var osName = os === 'windows' ? 'native Windows (Hadoop 3.3.6 + winutils, Java 8)' : (os === 'mac' ? 'macOS (Hadoop 3.4.1, Java 11)' : 'Linux/WSL2 (Hadoop 3.4.1, Java 11)');
+  return 'I am a university student doing a Big Data Analytics lab: "' + m.title + '" on ' + osName + '.\n' +
+    'The full lab guide with every command and expected output is here: https://shinzuu.github.io/bdal-lab-4-trainer/llms.txt (see the module named "' + m.title + '").\n\n' +
+    'I ran this command:\n<PASTE THE EXACT COMMAND YOU TYPED>\n\n' +
+    'And got this output/error:\n<PASTE THE FULL OUTPUT OR ERROR HERE>\n\n' +
+    'Please: (1) explain what went wrong in simple words, (2) give me the exact command(s) to fix it, one at a time, (3) tell me how to verify the fix worked. ' +
+    'Do not suggest reinstalling anything unless nothing else can work, and do not change directory names like /bda3 or file names like WeatherDataProcessor.java \u2014 the lecturer checks those exact names.';
+}
+
 // ---------- LLM-friendly guide (plain markdown, derived from the same lesson data) ----------
 
 function guideMarkdown(engine, os) {
@@ -708,7 +765,9 @@ function guideMarkdown(engine, os) {
       var cmd = step.answer(os);
       var result = engine.runCommand(state, cmd);
       lines.push('', '```', cmd, '```');
+      if (step.adapt) lines.push('', '**Adapt it (what to change / what not to touch):** ' + step.adapt);
       if (result.output) lines.push('', 'Expected output:', '', '```', result.output, '```');
+      if (step.expect) lines.push('', '**What to expect / not expect:** ' + step.expect);
     });
     if (m.outcome) lines.push('', '**Outcome — how you know it worked:** ' + m.outcome);
     if (m.troubleshooting) {
@@ -717,12 +776,13 @@ function guideMarkdown(engine, os) {
         lines.push('- **' + t[0] + '** \u2014 ' + t[1]);
       });
     }
+    lines.push('', '### Still stuck? Paste this into ChatGPT or any AI (fill the blanks):', '', '```', aiPrompt(m, os), '```');
   });
   lines.push('');
   return lines.join('\n');
 }
 
-var api = { MODULES: MODULES, buildRecap: buildRecap, buildExam: buildExam, examSetup: examSetup, guideMarkdown: guideMarkdown };
+var api = { MODULES: MODULES, buildRecap: buildRecap, buildExam: buildExam, examSetup: examSetup, guideMarkdown: guideMarkdown, aiPrompt: aiPrompt };
 root.BDALLessons = api;
 if (typeof module !== 'undefined' && module.exports) module.exports = api;
 

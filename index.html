@@ -214,6 +214,26 @@ a { color: var(--accent-ink); }
 .tfix { font-size: 13.5px; color: var(--ink); margin-top: 3px; }
 .guide-actions { margin: 20px 0 40px; }
 
+/* ---------- blog layout ---------- */
+.blog-hero { margin: 28px 0 4px; }
+.blog-hero p { max-width: 62ch; }
+.howto { background: var(--card); border: 1px solid var(--line); border-radius: 12px; padding: 14px 18px; margin: 18px 0; }
+.howto ol { margin: 4px 0 0; padding-left: 20px; }
+.howto li { margin: 6px 0; font-size: 14.5px; }
+.toc { display: flex; flex-direction: column; gap: 4px; background: var(--accent-soft); border-radius: 12px; padding: 12px 18px; margin: 14px 0 8px; }
+.toc a { font-family: var(--mono); font-size: 13.5px; color: var(--ink); text-decoration: none; }
+.toc a:hover { text-decoration: underline; }
+.blogsec { border-top: 2px solid var(--ink); margin-top: 40px; padding-top: 10px; }
+.blogsec > h2 { font-size: 22px; margin: 8px 0 12px; }
+.blogsec > h2 .modnum { vertical-align: middle; margin-right: 6px; }
+.adapt { background: #FFF6DD; border: 1px solid #EDDCA8; border-radius: 10px; padding: 10px 14px; margin: 10px 0; font-size: 13.5px; }
+.adapt .glabel { color: #8a6d00; }
+.expectbox { background: var(--card); border: 1px dashed var(--line); border-radius: 10px; padding: 10px 14px; margin: 10px 0 2px; font-size: 13.5px; color: var(--ink); }
+.aibox { background: var(--card); border: 1px solid var(--line); border-left: 4px solid var(--accent); border-radius: 12px; padding: 12px 16px; margin: 16px 0; }
+.aibox pre { font-family: var(--mono); font-size: 12px; white-space: pre-wrap; word-break: break-word; background: var(--paper); border-radius: 8px; padding: 10px 12px; margin: 8px 0; max-height: 220px; overflow-y: auto; }
+.secactions { margin: 14px 0 6px; }
+.practicelead { color: var(--muted); max-width: 62ch; }
+
 </style>
 </head>
 <body>
@@ -1066,6 +1086,12 @@ function cwdHas(state, name) {
 
 function isWin(os) { return os === 'windows'; }
 
+// attach blog-side help fields (adapt / expect) onto a step
+function H(step, extra) {
+  for (var k in extra) step[k] = extra[k];
+  return step;
+}
+
 // canonical per-OS fragments
 function startCmd(os) { return isWin(os) ? 'start-all.cmd' : 'hadoop-start'; }
 function kitCd(os) { return isWin(os) ? 'cd C:/BDA' : 'cd ~/kit/Lab-2-HDFS-Basic-Commands'; }
@@ -1520,10 +1546,19 @@ var MODULES = [
     ],
     setup: function (engine, os) { return engine.createState(os); },
     steps: [
-      stepJavaVersion(),
-      stepHadoopVersion(),
-      stepEchoHome(),
-      stepPigVersion({ theory: 'Pig setup = download pig-0.17.0.tar.gz → extract → export PIG_HOME=<folder> and add $PIG_HOME/bin to PATH. Then this one command is the proof the lab sheet asks for.' })
+      H(stepJavaVersion(), {
+        expect: 'Any 11.0.x on Linux/Mac (or 1.8.0_x on native Windows) is fine — the exact build numbers WILL differ from this guide, that is normal. “command not found” or version 17+ = fix before continuing (troubleshooting below).'
+      }),
+      H(stepHadoopVersion(), {
+        expect: '3.4.1 on Linux/Mac installs, 3.3.6 on the native-Windows manual setup. Any 3.x works for these labs; a 2.x means you followed a very old manual.'
+      }),
+      H(stepEchoHome(), {
+        adapt: 'YOUR path will differ from the guide — it is wherever YOU extracted Hadoop. Find yours: Linux/Mac → look where you unpacked it (e.g. `ls ~/bigdata`); Windows → System Properties → Environment Variables. Change only the VALUE if wrong — NEVER the variable name HADOOP_HOME.',
+        expect: 'A real folder path. An empty line means the variable is not set in THIS shell — new terminal or source your env file.'
+      }),
+      H(stepPigVersion({ theory: 'Pig setup = download pig-0.17.0.tar.gz → extract → export PIG_HOME=<folder> and add $PIG_HOME/bin to PATH. Then this one command is the proof the lab sheet asks for.' }), {
+        expect: 'Version 0.17.0, compiled 2017. Yes, that old — it is the current release. The old date is NOT a problem.'
+      })
     ]
   },
   {
@@ -1540,9 +1575,15 @@ var MODULES = [
     ],
     setup: function (engine, os) { return engine.createState(os); },
     steps: [
-      stepStart(),
-      stepJps(),
-      stepLsRoot('Found 2 items')
+      H(stepStart(), {
+        expect: 'Several “Starting …” lines. Daemons need ~10 seconds to settle. Do NOT expect instant — if jps looks short right after, wait 5 seconds and jps again before panicking.'
+      }),
+      H(stepJps(), {
+        expect: 'The NUMBERS (process ids) are different every time and will never match this guide — only the NAMES matter. Count them: 5 on Linux/Mac, 4 on native Windows.'
+      }),
+      H(stepLsRoot('Found 2 items'), {
+        expect: 'On a fresh cluster: /tmp and /user. A WARN NativeCodeLoader line above the listing appears on nearly every machine — it is noise, not an error.'
+      })
     ]
   },
   {
@@ -1567,8 +1608,13 @@ var MODULES = [
       stepMkdir('/dir1', '-mkdir creates a directory in HDFS — on the cluster, not on your disk.'),
       stepLs('/', '/dir1'),
       stepMkdir('/dir1/newdir', 'Paths nest exactly like a normal filesystem — a directory inside a directory.'),
-      stepCd(kitCd, 'The sample files live on your LOCAL disk. Local paths with SPACES break Hadoop commands — so we cd into the folder and use bare filenames.'),
-      stepPut('command3.txt', '/dir1', { theory: 'Local → HDFS is -copyFromLocal: local source first, HDFS destination second.' }),
+      H(stepCd(kitCd, 'The sample files live on your LOCAL disk. Local paths with SPACES break Hadoop commands — so we cd into the folder and use bare filenames.'), {
+        adapt: 'This path is OUR sample layout — use the folder where YOU actually saved the lab files. Replace everything after `cd` with your own path. Spaces in a path? Quote it — or better, move the files somewhere space-free.'
+      }),
+      H(stepPut('command3.txt', '/dir1', { theory: 'Local → HDFS is -copyFromLocal: local source first, HDFS destination second.' }), {
+        adapt: 'The filename must match EXACTLY, including case — command3.txt is not Command3.txt.',
+        expect: 'Just a WARN line (or nothing) = success. Hadoop is loud about failure and silent about success.'
+      }),
       stepLs('/dir1', 'command3.txt'),
       stepLocalMkdir('downloaded'),
       stepGet('/dir1/command3.txt', 'downloaded', { theory: 'HDFS → local is -copyToLocal — the exact mirror of -copyFromLocal.' }),
@@ -1602,16 +1648,29 @@ var MODULES = [
       return s;
     },
     steps: [
-      stepMkdir('/bda3', 'The job reads its input FROM HDFS — give it a home there first. The lecturer names this directory /bda3; keep his names so his checks match.'),
-      stepWeatherCd(),
+      H(stepMkdir('/bda3', 'The job reads its input FROM HDFS — give it a home there first. The lecturer names this directory /bda3; keep his names so his checks match.'), {
+        adapt: 'Keep the name /bda3 EXACTLY as the lecturer wrote it — not bda3, not /bda-3, not /BDA3. He checks with his own paths.'
+      }),
+      H(stepWeatherCd(), {
+        adapt: 'Your folder can live anywhere — what matters: Weather.csv AND WeatherDataProcessor.java in the SAME folder, and you standing in it. Get the two files from the lecturer’s repo: github.com/hossain-tamim/big_data_analytics_lab.'
+      }),
       stepCatLocal('Weather.csv', '2025-03-01, 32, 55, Clear', 'Weather.csv is the dataset: 31 days, one per line, format date, temperature, humidity, condition. (Humidity is read but never used — a favourite viva question.)'),
       stepPut('Weather.csv', '/bda3', { theory: 'Same -copyFromLocal as Lab 2 — a CSV is just a file to HDFS.' }),
       stepLs('/bda3', 'Weather.csv'),
-      stepJavacW(),
-      stepJarW(),
-      stepRunJobW('/bda3/Weather.csv', '/Weather_output'),
+      H(stepJavacW(), {
+        adapt: 'Copy the -classpath part EXACTLY — do not retype the quotes by hand. Do NOT rename the .java file (the public class name must equal the file name). Customizing the six weatherMessage.set("…") strings is required in the real lab — change ONLY the text inside the quotes, never the if/else logic.',
+        expect: 'NO output at all = success. javac only speaks when something is wrong.'
+      }),
+      H(stepJarW(), {
+        expect: '-cf prints nothing; -cvf lists each file it adds. Either way, `ls` afterwards must show WeatherDataProcessor.jar.'
+      }),
+      H(stepRunJobW('/bda3/Weather.csv', '/Weather_output'), {
+        expect: 'A FLOOD of INFO lines is normal — do not panic and do not Ctrl+C. Watch for: map 0% → 100%, then reduce → 100%, then “completed successfully”. Takes ~20–60 s on lab machines.'
+      }),
       stepLs('/Weather_output', 'part-r-00000'),
-      stepReadResultW('/Weather_output')
+      H(stepReadResultW('/Weather_output'), {
+        expect: 'This guide shows the ORIGINAL handout messages. If you customized your six strings (you must, in the real lab), your TEXT will differ — but the PATTERN of which date gets which category must match this exactly. 31 lines, date-sorted, no Cold Day.'
+      })
     ]
   },
   {
@@ -1630,12 +1689,16 @@ var MODULES = [
     setup: function (engine, os) { return engine.createState(os); },
     steps: [
       stepPigVersion({ theory: 'This lab needs NO cluster — Pig local mode works on plain files. But first, the ritual: prove pig answers.' }),
-      stepPigCd(),
+      H(stepPigCd(), {
+        adapt: 'Any folder works — but ALL THREE files (students.csv, scores.csv, script.pig) must sit in it together, and you must cd there BEFORE running pig. The script’s LOAD paths are relative to where you stand.'
+      }),
       stepPigLs(),
       stepCatLocal('students.csv', '2,Alice,19,B', 'Two tiny CSVs drive everything. students.csv: id, name, age, grade.'),
       stepCatLocal('script.pig', 'FILTER students BY age > 18',
         'Read the script before running it. LOAD names the columns and types; then one line per operation: FILTER, FOREACH/GENERATE (that is “project”), ORDER, GROUP, JOIN; DUMP prints a result to the screen.'),
-      stepPigRun()
+      H(stepPigRun(), {
+        expect: 'Real Pig prints PAGES of INFO logs before and between the answers — the guide shows the short version. Scroll to find the (…) tuple lines after each DUMP. Order INSIDE the { } bags may vary run to run; the values must not.'
+      })
     ]
   }
 ];
@@ -1648,6 +1711,8 @@ function stripTheory(step) {
   delete s.theory;
   delete s.anatomy;
   delete s.note;
+  delete s.adapt;
+  delete s.expect;
   return s;
 }
 
@@ -1721,6 +1786,18 @@ function buildExam() {
 
 function examSetup(engine, os) { return engine.createState(os); }
 
+// ---------- AI-help prompt (per module, ready to paste into any LLM) ----------
+
+function aiPrompt(m, os) {
+  var osName = os === 'windows' ? 'native Windows (Hadoop 3.3.6 + winutils, Java 8)' : (os === 'mac' ? 'macOS (Hadoop 3.4.1, Java 11)' : 'Linux/WSL2 (Hadoop 3.4.1, Java 11)');
+  return 'I am a university student doing a Big Data Analytics lab: "' + m.title + '" on ' + osName + '.\n' +
+    'The full lab guide with every command and expected output is here: https://shinzuu.github.io/bdal-lab-4-trainer/llms.txt (see the module named "' + m.title + '").\n\n' +
+    'I ran this command:\n<PASTE THE EXACT COMMAND YOU TYPED>\n\n' +
+    'And got this output/error:\n<PASTE THE FULL OUTPUT OR ERROR HERE>\n\n' +
+    'Please: (1) explain what went wrong in simple words, (2) give me the exact command(s) to fix it, one at a time, (3) tell me how to verify the fix worked. ' +
+    'Do not suggest reinstalling anything unless nothing else can work, and do not change directory names like /bda3 or file names like WeatherDataProcessor.java \u2014 the lecturer checks those exact names.';
+}
+
 // ---------- LLM-friendly guide (plain markdown, derived from the same lesson data) ----------
 
 function guideMarkdown(engine, os) {
@@ -1743,7 +1820,9 @@ function guideMarkdown(engine, os) {
       var cmd = step.answer(os);
       var result = engine.runCommand(state, cmd);
       lines.push('', '```', cmd, '```');
+      if (step.adapt) lines.push('', '**Adapt it (what to change / what not to touch):** ' + step.adapt);
       if (result.output) lines.push('', 'Expected output:', '', '```', result.output, '```');
+      if (step.expect) lines.push('', '**What to expect / not expect:** ' + step.expect);
     });
     if (m.outcome) lines.push('', '**Outcome — how you know it worked:** ' + m.outcome);
     if (m.troubleshooting) {
@@ -1752,12 +1831,13 @@ function guideMarkdown(engine, os) {
         lines.push('- **' + t[0] + '** \u2014 ' + t[1]);
       });
     }
+    lines.push('', '### Still stuck? Paste this into ChatGPT or any AI (fill the blanks):', '', '```', aiPrompt(m, os), '```');
   });
   lines.push('');
   return lines.join('\n');
 }
 
-var api = { MODULES: MODULES, buildRecap: buildRecap, buildExam: buildExam, examSetup: examSetup, guideMarkdown: guideMarkdown };
+var api = { MODULES: MODULES, buildRecap: buildRecap, buildExam: buildExam, examSetup: examSetup, guideMarkdown: guideMarkdown, aiPrompt: aiPrompt };
 root.BDALLessons = api;
 if (typeof module !== 'undefined' && module.exports) module.exports = api;
 
@@ -1866,29 +1946,97 @@ function modStatus(p, id) {
 
 function renderHome() {
   if (!getOS()) return renderOSPicker();
+  var os = getOS();
   var p = getProgress();
+  var cmds = [];   // copy-button payloads collected while rendering
+  var prompts = []; // AI prompts per module
+
+  // --- article header + how-to + TOC ---
+  var html = '<div class="hero blog-hero">' +
+    '<h1>The BDAL labs, start to finish.<span class="cursor"></span></h1>' +
+    '<p>You are reading the <strong>' + esc(OS_META[os].name) + '</strong> version — wrong machine? Switch with the button top-right. ' +
+    'Read top to bottom: every command has a copy button, its expected output, what you may change, what you must NOT touch, and what to do when it breaks. ' +
+    'Practice (optional, recommended) waits at the <a href="#practice">bottom</a>.</p>' +
+    '</div>';
+
+  html += '<div class="howto">' +
+    '<span class="glabel">how to use this page</span>' +
+    '<ol>' +
+    '<li><strong>Copy, paste, compare.</strong> Run each command in YOUR terminal, compare with the “expected output” box. Match → next command. No match → that module\u2019s troubleshooting table.</li>' +
+    '<li><strong>Yellow “adapt it” boxes</strong> tell you which parts are yours to change (your folders, your paths) and which parts must stay EXACTLY as written (HDFS names like /bda3, file names, class names).</li>' +
+    '<li><strong>Still stuck?</strong> Every module ends with a ready-made AI prompt — copy it, fill in your command + error, paste into ChatGPT/Gemini/any AI. It links this guide so the AI has full context.</li>' +
+    '</ol></div>';
+
+  var toc = lessons.MODULES.map(function (m, i) {
+    return '<a href="#mod' + (i + 1) + '">' + (i + 1) + '. ' + esc(m.title) + '</a>';
+  }).join('');
+  html += '<nav class="toc"><span class="glabel">on this page</span>' + toc +
+    '<a href="#practice">6. Practice (optional)</a></nav>';
+
+  // --- one blog section per module ---
+  lessons.MODULES.forEach(function (m, mi) {
+    var state = m.setup(engine, os);
+    html += '<section class="blogsec" id="mod' + (mi + 1) + '">';
+    html += '<h2><span class="modnum">part ' + (mi + 1) + '</span> ' + esc(m.title) + '</h2>';
+    if (m.intro) html += '<div class="theory"><span class="glabel">before you start</span>' + md(m.intro) + '</div>';
+    m.steps.forEach(function (step, i) {
+      var cmd = step.answer(os);
+      var result = engine.runCommand(state, cmd);
+      html += '<div class="gstep">';
+      html += '<div class="gnum">step ' + (i + 1) + ' / ' + m.steps.length + ' — ' + md(step.question) + '</div>';
+      if (step.theory) html += '<div class="theory">' + md(step.theory) + '</div>';
+      if (step.note) html += '<div class="note">' + md(step.note) + '</div>';
+      html += '<div class="gcmd"><code>' + esc(cmd) + '</code><button class="copybtn" data-ci="' + cmds.length + '">copy</button></div>';
+      cmds.push(cmd);
+      if (step.adapt) html += '<div class="adapt"><span class="glabel">adapt it — change / don\u2019t change</span>' + md(step.adapt) + '</div>';
+      if (step.anatomy) {
+        var rows = step.anatomy(os).map(function (r) {
+          return '<div class="arow"><code>' + esc(r[0]) + '</code><span>' + esc(r[1]) + '</span></div>';
+        }).join('');
+        html += '<div class="anatomy"><div class="alabel">word by word</div>' + rows + '</div>';
+      }
+      if (result.output) html += '<div class="gout"><span class="glabel">expected output</span>' + esc(result.output) + '</div>';
+      if (step.expect) html += '<div class="expectbox"><span class="glabel">what to expect / not expect</span>' + md(step.expect) + '</div>';
+      html += '</div>';
+    });
+    if (m.outcome) html += '<div class="outcome"><span class="glabel">outcome — how you know it worked</span>' + md(m.outcome) + '</div>';
+    if (m.troubleshooting) {
+      var trows = m.troubleshooting.map(function (t) {
+        return '<div class="trow"><div class="terr">' + md(t[0]) + '</div><div class="tfix">' + md(t[1]) + '</div></div>';
+      }).join('');
+      html += '<div class="trouble"><div class="alabel">troubleshooting — when it goes wrong</div>' + trows + '</div>';
+    }
+    var promptText = lessons.aiPrompt(m, os);
+    html += '<div class="aibox"><span class="glabel">still stuck? ask an AI — copy this, fill the blanks, paste into ChatGPT</span>' +
+      '<pre>' + esc(promptText) + '</pre>' +
+      '<button class="btn ghost aicopy" data-pi="' + prompts.length + '">Copy AI prompt</button></div>';
+    prompts.push(promptText);
+    html += '<div class="btnrow secactions"><button class="btn" data-run="guided" data-mod="' + mi + '">\u2328 Practice this part</button></div>';
+    html += '</section>';
+  });
+
+  // --- optional practice section ---
   var mods = lessons.MODULES.map(function (m, i) {
     var st = p[m.id] || {};
     return '<div class="modcard">' +
-      '<span class="modnum">module ' + (i + 1) + '</span>' +
+      '<span class="modnum">part ' + (i + 1) + '</span>' +
       '<h2>' + esc(m.title) + '</h2>' +
       '<p class="sub">' + esc(m.subtitle) + '  ' + modStatus(p, m.id) + '</p>' +
       '<div class="btnrow">' +
-      '<button class="btn ghost" data-guide="' + i + '">\ud83d\udcd6 Guide</button>' +
       '<button class="btn" data-run="guided" data-mod="' + i + '">' + (st.guided ? 'Redo practice' : 'Practice') + '</button>' +
       '<button class="btn ghost" data-run="recap" data-mod="' + i + '" ' + (st.guided ? '' : 'disabled') + '>Recap round</button>' +
       '</div>' +
-      (st.guided ? '' : '<p class="lockhint">Guide = read it with expected outputs + troubleshooting. Practice = type it. Recap unlocks after practice.</p>') +
+      (st.guided ? '' : '<p class="lockhint">Recap unlocks after practice — same commands, new paths, from memory.</p>') +
       '</div>';
   }).join('');
   var allRecaps = lessons.MODULES.every(function (m) { return (p[m.id] || {}).recap; });
   var exam = '<div class="modcard">' +
     '<span class="modnum">final</span>' +
     '<h2>Exam mode</h2>' +
-    '<p class="sub">Preflight + Lab 2 + Weather CSV + Pig start to finish, fresh cluster, no theory. Hints only after two misses.' +
+    '<p class="sub">Everything above start to finish, fresh cluster, no theory. Hints only after two misses.' +
     (p.examBest != null ? '  <span class="done">best: ' + p.examBest + '%</span>' : '') + '</p>' +
     '<div class="btnrow"><button class="btn" id="run-exam" ' + (allRecaps ? '' : 'disabled') + '>Start exam</button></div>' +
-    (allRecaps ? '' : '<p class="lockhint">Unlocks when every module\u2019s recap round is done.</p>') +
+    (allRecaps ? '' : '<p class="lockhint">Unlocks when every part\u2019s recap round is done.</p>') +
     '</div>';
   var sandbox = '<div class="modcard">' +
     '<span class="modnum">free play</span>' +
@@ -1896,23 +2044,29 @@ function renderHome() {
     '<p class="sub">An open simulated terminal — same cluster, no questions. Try anything.</p>' +
     '<div class="btnrow"><button class="btn ghost" id="run-sandbox">Open sandbox</button></div>' +
     '</div>';
-  app.innerHTML = headerHTML() +
-    '<div class="modlist">' + mods + exam + sandbox + '</div>' +
-    '<div class="footer">Simulator for practice — commands behave like the real lab, output is faithful but canned. ' +
+  html += '<section class="blogsec" id="practice">' +
+    '<h2><span class="modnum">optional</span> Practice — type it before the lab</h2>' +
+    '<p class="practicelead">Reading is not remembering. Each part above has a practice mode: the same steps in a simulated terminal that behaves like the real lab — it even fails like the real lab. Strongly recommended the night before.</p>' +
+    '<div class="modlist">' + mods + exam + sandbox + '</div></section>';
+
+  html += '<div class="footer">Commands behave like the real lab; outputs are faithful but canned. ' +
     'Earlier labs (incl. matrix multiplication): <a href="https://shinzuu.github.io/bdal-playground/">bdal-playground</a> · kit: <a href="https://github.com/shinzuu/hadoop-bdal-lab-kit">hadoop-bdal-lab-kit</a>. ' +
     'Weather program + Pig lab credit: <a href="https://github.com/hossain-tamim/big_data_analytics_lab">hossain-tamim</a>. ' +
     'AI-friendly full guide: <a href="llms.txt">llms.txt</a>. ' +
     '<button id="reset-progress">Reset progress</button></div>';
+
+  app.innerHTML = headerHTML() + html;
   bindHeader();
+  Array.prototype.forEach.call(document.querySelectorAll('.copybtn'), function (el) {
+    el.onclick = function () { copyText(cmds[parseInt(el.getAttribute('data-ci'), 10)], el); };
+  });
+  Array.prototype.forEach.call(document.querySelectorAll('.aicopy'), function (el) {
+    el.onclick = function () { copyText(prompts[parseInt(el.getAttribute('data-pi'), 10)], el, '\u2713 copied — fill the blanks, then paste into your AI'); };
+  });
   Array.prototype.forEach.call(document.querySelectorAll('[data-run]'), function (el) {
     el.onclick = function () {
       var m = lessons.MODULES[parseInt(el.getAttribute('data-mod'), 10)];
       startRun(el.getAttribute('data-run'), m);
-    };
-  });
-  Array.prototype.forEach.call(document.querySelectorAll('[data-guide]'), function (el) {
-    el.onclick = function () {
-      renderGuide(lessons.MODULES[parseInt(el.getAttribute('data-guide'), 10)]);
     };
   });
   var ex = document.getElementById('run-exam');
@@ -1923,56 +2077,7 @@ function renderHome() {
   };
 }
 
-// ---------- guide view (read: prereqs -> commands + expected output -> outcome -> troubleshooting) ----------
-
-function renderGuide(mod) {
-  var os = getOS();
-  var state = mod.setup(engine, os);
-  var cmds = [];
-  var html = '<div class="runhead"><span class="runtitle">' + esc(mod.title) + ' — guide (' + esc(OS_META[os].name) + ')</span></div>';
-  if (mod.intro) html += '<div class="theory"><span class="glabel">prerequisites</span>' + md(mod.intro) + '</div>';
-  mod.steps.forEach(function (step, i) {
-    var cmd = step.answer(os);
-    var result = engine.runCommand(state, cmd);
-    html += '<div class="gstep">';
-    html += '<div class="gnum">step ' + (i + 1) + ' / ' + mod.steps.length + ' — ' + md(step.question) + '</div>';
-    if (step.theory) html += '<div class="theory">' + md(step.theory) + '</div>';
-    if (step.note) html += '<div class="note">' + md(step.note) + '</div>';
-    html += '<div class="gcmd"><code>' + esc(cmd) + '</code><button class="copybtn" data-ci="' + cmds.length + '">copy</button></div>';
-    cmds.push(cmd);
-    if (step.anatomy) {
-      var rows = step.anatomy(os).map(function (r) {
-        return '<div class="arow"><code>' + esc(r[0]) + '</code><span>' + esc(r[1]) + '</span></div>';
-      }).join('');
-      html += '<div class="anatomy"><div class="alabel">word by word</div>' + rows + '</div>';
-    }
-    if (result.output) html += '<div class="gout"><span class="glabel">expected output</span>' + esc(result.output) + '</div>';
-    html += '</div>';
-  });
-  if (mod.outcome) html += '<div class="outcome"><span class="glabel">outcome — how you know it worked</span>' + md(mod.outcome) + '</div>';
-  if (mod.troubleshooting) {
-    var trows = mod.troubleshooting.map(function (t) {
-      return '<div class="trow"><div class="terr">' + md(t[0]) + '</div><div class="tfix">' + md(t[1]) + '</div></div>';
-    }).join('');
-    html += '<div class="trouble"><div class="alabel">troubleshooting — when it goes wrong</div>' + trows + '</div>';
-  }
-  html += '<div class="btnrow guide-actions">' +
-    '<button class="btn" id="guide-practice">Practice it now →</button>' +
-    '<button class="btn ghost" id="copy-md">Copy guide as Markdown (for AI help)</button>' +
-    '<button class="btn ghost" id="back-home">Menu</button></div>';
-  app.innerHTML = headerHTML() + '<div class="guide">' + html + '</div>';
-  bindHeader();
-  Array.prototype.forEach.call(document.querySelectorAll('.copybtn'), function (el) {
-    el.onclick = function () {
-      copyText(cmds[parseInt(el.getAttribute('data-ci'), 10)], el);
-    };
-  });
-  document.getElementById('guide-practice').onclick = function () { startRun('guided', mod); };
-  document.getElementById('back-home').onclick = function () { renderHome(); };
-  document.getElementById('copy-md').onclick = function () {
-    copyText(lessons.guideMarkdown(engine, os), document.getElementById('copy-md'), 'copied — paste into any AI chat');
-  };
-}
+// ---------- clipboard helpers ----------
 
 function copyText(text, btn, doneLabel) {
   function done() {
