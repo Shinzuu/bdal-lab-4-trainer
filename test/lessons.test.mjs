@@ -81,3 +81,28 @@ test('repetition audit: every core command family appears >= 3 times overall', (
     assert.ok(n >= 2, `preflight family "${name}" appears ${n}x, need >= 2`);
   }
 });
+
+test('every module carries intro, outcome and troubleshooting', () => {
+  for (const m of MODULES) {
+    assert.ok(typeof m.intro === 'string' && m.intro.length > 40, `${m.id} intro`);
+    assert.ok(typeof m.outcome === 'string' && m.outcome.length > 40, `${m.id} outcome`);
+    assert.ok(Array.isArray(m.troubleshooting) && m.troubleshooting.length >= 3, `${m.id} troubleshooting >= 3 entries`);
+    for (const t of m.troubleshooting) {
+      assert.ok(t.length === 2 && t[0].length && t[1].length, `${m.id} troubleshooting rows are [error, fix]`);
+    }
+  }
+});
+
+test('guideMarkdown renders per OS with commands, outputs and troubleshooting', () => {
+  for (const os of OSES) {
+    const md = lessons.guideMarkdown(engine, os);
+    assert.ok(md.length > 10000, `${os} guide has substance`);
+    for (const m of MODULES) assert.ok(md.includes('## Module'), `${os} has module headers`);
+    assert.ok(md.includes('Troubleshooting'), `${os} has troubleshooting`);
+    assert.ok(md.includes('Expected output:'), `${os} shows outputs`);
+    assert.ok(md.includes(os === 'windows' ? 'start-all.cmd' : 'hadoop-start'), `${os} start cmd`);
+    assert.ok(md.includes('pig -x local script.pig'), `${os} pig run`);
+    assert.ok(md.includes('(Alice,B)'), `${os} pig output present`);
+    assert.ok(md.includes('2025-03-31\tStormy Weather - Stay Safe!'), `${os} weather output present`);
+  }
+});

@@ -26,3 +26,19 @@ for (const [marker, content] of Object.entries(parts)) {
 
 writeFileSync(new URL('./index.html', import.meta.url), html);
 console.log(`build: index.html written (${(html.length / 1024).toFixed(1)} KB)`);
+
+// LLM-friendly guide: same lesson data, plain markdown, one file per audience.
+import { createRequire } from 'node:module';
+const require = createRequire(import.meta.url);
+const engine = require('./src/engine.js');
+const lessons = require('./src/lessons.js');
+
+const guide = [
+  lessons.guideMarkdown(engine, 'linux'),
+  '\n---\n\n> macOS: identical to the Linux guide above (same commands, same 5 daemons).\n\n---\n',
+  lessons.guideMarkdown(engine, 'windows'),
+].join('\n');
+
+writeFileSync(new URL('./llms.txt', import.meta.url), guide);
+writeFileSync(new URL('./GUIDE.md', import.meta.url), guide);
+console.log(`build: llms.txt + GUIDE.md written (${(guide.length / 1024).toFixed(1)} KB)`);

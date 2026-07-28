@@ -80,7 +80,7 @@ function renderOSPicker() {
   app.innerHTML = headerHTML() +
     '<div class="hero">' +
     '<h1>Learn the lab by typing it.<span class="cursor"></span></h1>' +
-    '<p>A simulated Hadoop terminal for the newer BDAL labs — install preflight, cluster startup, HDFS commands (Lab&nbsp;2), the Weather-CSV MapReduce job (Lab&nbsp;4) and Apache Pig. Each module: prerequisites → short theory → you type every command → the expected outcome. Nothing to install.</p>' +
+    '<p>Guide + practice for the newer BDAL labs — install preflight, cluster startup, HDFS commands (Lab&nbsp;2), the Weather-CSV MapReduce job (Lab&nbsp;4) and Apache Pig. Each module: <strong>read the guide</strong> (prerequisites → every command with its expected output → outcome → troubleshooting), then <strong>practice</strong> by typing every command into a simulated terminal. Nothing to install.</p>' +
     '<p><strong>First: which machine will you sit at in the lab?</strong></p>' +
     '</div>' +
     '<div class="oslist">' + cards + '</div>';
@@ -107,10 +107,11 @@ function renderHome() {
       '<h2>' + esc(m.title) + '</h2>' +
       '<p class="sub">' + esc(m.subtitle) + '  ' + modStatus(p, m.id) + '</p>' +
       '<div class="btnrow">' +
-      '<button class="btn" data-run="guided" data-mod="' + i + '">' + (st.guided ? 'Redo guided' : 'Start guided') + '</button>' +
+      '<button class="btn ghost" data-guide="' + i + '">\ud83d\udcd6 Guide</button>' +
+      '<button class="btn" data-run="guided" data-mod="' + i + '">' + (st.guided ? 'Redo practice' : 'Practice') + '</button>' +
       '<button class="btn ghost" data-run="recap" data-mod="' + i + '" ' + (st.guided ? '' : 'disabled') + '>Recap round</button>' +
       '</div>' +
-      (st.guided ? '' : '<p class="lockhint">Recap unlocks after the guided run — same commands, new paths, no theory.</p>') +
+      (st.guided ? '' : '<p class="lockhint">Guide = read it with expected outputs + troubleshooting. Practice = type it. Recap unlocks after practice.</p>') +
       '</div>';
   }).join('');
   var allRecaps = lessons.MODULES.every(function (m) { return (p[m.id] || {}).recap; });
@@ -133,6 +134,7 @@ function renderHome() {
     '<div class="footer">Simulator for practice — commands behave like the real lab, output is faithful but canned. ' +
     'Earlier labs (incl. matrix multiplication): <a href="https://shinzuu.github.io/bdal-playground/">bdal-playground</a> · kit: <a href="https://github.com/shinzuu/hadoop-bdal-lab-kit">hadoop-bdal-lab-kit</a>. ' +
     'Weather program + Pig lab credit: <a href="https://github.com/hossain-tamim/big_data_analytics_lab">hossain-tamim</a>. ' +
+    'AI-friendly full guide: <a href="llms.txt">llms.txt</a>. ' +
     '<button id="reset-progress">Reset progress</button></div>';
   bindHeader();
   Array.prototype.forEach.call(document.querySelectorAll('[data-run]'), function (el) {
@@ -141,12 +143,89 @@ function renderHome() {
       startRun(el.getAttribute('data-run'), m);
     };
   });
+  Array.prototype.forEach.call(document.querySelectorAll('[data-guide]'), function (el) {
+    el.onclick = function () {
+      renderGuide(lessons.MODULES[parseInt(el.getAttribute('data-guide'), 10)]);
+    };
+  });
   var ex = document.getElementById('run-exam');
   if (ex) ex.onclick = function () { if (!ex.disabled) startRun('exam', null); };
   document.getElementById('run-sandbox').onclick = function () { startRun('sandbox', null); };
   document.getElementById('reset-progress').onclick = function () {
     if (confirm('Clear all progress for every OS?')) { localStorage.removeItem('bdal4.progress'); renderHome(); }
   };
+}
+
+// ---------- guide view (read: prereqs -> commands + expected output -> outcome -> troubleshooting) ----------
+
+function renderGuide(mod) {
+  var os = getOS();
+  var state = mod.setup(engine, os);
+  var cmds = [];
+  var html = '<div class="runhead"><span class="runtitle">' + esc(mod.title) + ' — guide (' + esc(OS_META[os].name) + ')</span></div>';
+  if (mod.intro) html += '<div class="theory"><span class="glabel">prerequisites</span>' + md(mod.intro) + '</div>';
+  mod.steps.forEach(function (step, i) {
+    var cmd = step.answer(os);
+    var result = engine.runCommand(state, cmd);
+    html += '<div class="gstep">';
+    html += '<div class="gnum">step ' + (i + 1) + ' / ' + mod.steps.length + ' — ' + md(step.question) + '</div>';
+    if (step.theory) html += '<div class="theory">' + md(step.theory) + '</div>';
+    if (step.note) html += '<div class="note">' + md(step.note) + '</div>';
+    html += '<div class="gcmd"><code>' + esc(cmd) + '</code><button class="copybtn" data-ci="' + cmds.length + '">copy</button></div>';
+    cmds.push(cmd);
+    if (step.anatomy) {
+      var rows = step.anatomy(os).map(function (r) {
+        return '<div class="arow"><code>' + esc(r[0]) + '</code><span>' + esc(r[1]) + '</span></div>';
+      }).join('');
+      html += '<div class="anatomy"><div class="alabel">word by word</div>' + rows + '</div>';
+    }
+    if (result.output) html += '<div class="gout"><span class="glabel">expected output</span>' + esc(result.output) + '</div>';
+    html += '</div>';
+  });
+  if (mod.outcome) html += '<div class="outcome"><span class="glabel">outcome — how you know it worked</span>' + md(mod.outcome) + '</div>';
+  if (mod.troubleshooting) {
+    var trows = mod.troubleshooting.map(function (t) {
+      return '<div class="trow"><div class="terr">' + md(t[0]) + '</div><div class="tfix">' + md(t[1]) + '</div></div>';
+    }).join('');
+    html += '<div class="trouble"><div class="alabel">troubleshooting — when it goes wrong</div>' + trows + '</div>';
+  }
+  html += '<div class="btnrow guide-actions">' +
+    '<button class="btn" id="guide-practice">Practice it now →</button>' +
+    '<button class="btn ghost" id="copy-md">Copy guide as Markdown (for AI help)</button>' +
+    '<button class="btn ghost" id="back-home">Menu</button></div>';
+  app.innerHTML = headerHTML() + '<div class="guide">' + html + '</div>';
+  bindHeader();
+  Array.prototype.forEach.call(document.querySelectorAll('.copybtn'), function (el) {
+    el.onclick = function () {
+      copyText(cmds[parseInt(el.getAttribute('data-ci'), 10)], el);
+    };
+  });
+  document.getElementById('guide-practice').onclick = function () { startRun('guided', mod); };
+  document.getElementById('back-home').onclick = function () { renderHome(); };
+  document.getElementById('copy-md').onclick = function () {
+    copyText(lessons.guideMarkdown(engine, os), document.getElementById('copy-md'), 'copied — paste into any AI chat');
+  };
+}
+
+function copyText(text, btn, doneLabel) {
+  function done() {
+    if (!btn) return;
+    var old = btn.textContent;
+    btn.textContent = doneLabel || '\u2713 copied';
+    setTimeout(function () { btn.textContent = old; }, 1600);
+  }
+  if (navigator.clipboard && navigator.clipboard.writeText) {
+    navigator.clipboard.writeText(text).then(done, function () { fallbackCopy(text); done(); });
+  } else { fallbackCopy(text); done(); }
+}
+
+function fallbackCopy(text) {
+  var ta = document.createElement('textarea');
+  ta.value = text;
+  document.body.appendChild(ta);
+  ta.select();
+  try { document.execCommand('copy'); } catch (e) { /* nothing */ }
+  document.body.removeChild(ta);
 }
 
 // ---------- run (guided / recap / exam / sandbox) ----------

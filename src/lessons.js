@@ -475,6 +475,14 @@ var MODULES = [
     id: 'm1',
     title: 'Preflight — prove the install',
     subtitle: 'java · hadoop version · HADOOP_HOME · pig -version',
+    intro: 'Before ANY lab: a JDK must be installed (Java 11 on Linux/Mac, Java 8 on native Windows), Hadoop extracted with HADOOP_HOME + PATH set, and Apache Pig 0.17.0 extracted with PIG_HOME + PATH set. This module is the 60-second check that each one actually answers — run it at the start of every lab session.',
+    outcome: 'All four checks answer: `java -version` prints a JDK, `hadoop version` prints 3.x, HADOOP_HOME echoes a real folder, and `pig -version` prints 0.17.0. If any of them fails, fix it NOW — nothing later works without it.',
+    troubleshooting: [
+      ['command not found: hadoop', 'HADOOP_HOME/PATH not set in this shell. Linux/Mac: `source ~/bigdata/hadoop-env.sh` (or open a new terminal). Windows: re-check Environment Variables and open a NEW cmd window — old windows keep the old variables.'],
+      ['command not found: pig', 'PIG_HOME/bin is not on PATH. Set `export PIG_HOME=<pig folder>` and add `$PIG_HOME/bin` to PATH, then open a new terminal.'],
+      ['echo prints an empty line', 'The variable is not set in this shell — same fix as above: source the env file / new terminal.'],
+      ['java points at the wrong version', 'JAVA_HOME wins over PATH for Hadoop. Point JAVA_HOME at the JDK folder itself (the one containing bin/), not at bin/java.']
+    ],
     setup: function (engine, os) { return engine.createState(os); },
     steps: [
       stepJavaVersion(),
@@ -487,6 +495,14 @@ var MODULES = [
     id: 'm2',
     title: 'Boot the cluster',
     subtitle: 'start · jps · first look at HDFS',
+    intro: 'Needs: module 1 passing (Hadoop answers). The cluster daemons do not survive a reboot — every session starts with starting them, then PROVING they run with jps, then one look into HDFS.',
+    outcome: 'jps lists 5 daemons on Linux/Mac (NameNode, DataNode, SecondaryNameNode, ResourceManager, NodeManager) or 4 on native Windows, and `hadoop fs -ls /` answers without errors. Web check: http://localhost:9870 loads.',
+    troubleshooting: [
+      ['Connection refused localhost:9000', 'The cluster is not running (or NameNode died). Run the start command, wait ~10 s, jps again.'],
+      ['jps is missing the DataNode', 'Usually a clusterID mismatch after re-formatting the NameNode. Stop all, delete the datanode data directory, `hdfs namenode -format`, start again.'],
+      ['jps is missing the NameNode', 'Almost always a formatting problem — check the namenode log; on first install run `hdfs namenode -format` once.'],
+      ['Windows: a daemon console window closed', 'On native Windows each daemon lives in its own console window — closing the window kills that daemon. Re-run start-all.cmd and leave all windows open.']
+    ],
     setup: function (engine, os) { return engine.createState(os); },
     steps: [
       stepStart(),
@@ -498,6 +514,15 @@ var MODULES = [
     id: 'm3',
     title: 'HDFS commands — Lab 2',
     subtitle: 'mkdir · put/get · cat · rm — the full lab sheet',
+    intro: 'Needs: cluster running (module 2). This is the full Lab-2 sheet: create HDFS directories, move files IN (copyFromLocal/put), OUT (copyToLocal/get), read them (cat), delete them (rm / rmdir / rm -r). Remember: `hadoop fs` and `hdfs dfs` are the SAME command.',
+    outcome: 'You round-tripped files into and out of HDFS and cleaned everything up — `hadoop fs -ls /` shows just /tmp and /user again, exactly as you found it.',
+    troubleshooting: [
+      ['put: `…\': File exists', 'The file is already there. Add -f to overwrite (`-put -f`), or delete the old one first.'],
+      ['put: `…\': No such file or directory (the LOCAL file)', 'You are not in the folder that holds the file — cd there first, or give the full path. Paths with SPACES must be quoted (better: avoid them).'],
+      ['rmdir: Directory is not empty', '-rmdir only deletes EMPTY directories. Delete the contents first, or use `-rm -r` for directory + contents in one go.'],
+      ['rm: `…\': Is a directory', 'Plain -rm refuses directories — add -r.'],
+      ['WARN util.NativeCodeLoader', 'Harmless on every machine in this course. Ignore it, always.']
+    ],
     setup: function (engine, os) {
       var s = engine.createState(os);
       engine.runCommand(s, os === 'windows' ? 'start-all.cmd' : 'hadoop-start');
@@ -526,6 +551,16 @@ var MODULES = [
     id: 'm4',
     title: 'Weather CSV — Lab 4',
     subtitle: 'inspect · load · compile · jar · run · read all 31 days',
+    intro: 'Needs: cluster running, plus Weather.csv and WeatherDataProcessor.java on your local disk (from the lecturer\u2019s repo: github.com/hossain-tamim/big_data_analytics_lab). Flow: inspect the data \u2192 load it into HDFS \u2192 compile YOUR Java against Hadoop\u2019s classpath \u2192 package a jar \u2192 run the job \u2192 read the classified output. In the REAL lab, also change the six weatherMessage.set("\u2026") strings to your own words before compiling.',
+    outcome: '/Weather_output/part-r-00000 holds all 31 days classified, date-sorted. Counters say Map input records=31 AND Reduce output records=31 (identity reducer — unique dates, nothing merges). Tally with the original messages: 9 Hot \u00b7 10 Moderate \u00b7 5 Rainy \u00b7 5 Snowy \u00b7 2 Stormy \u00b7 0 Cold.',
+    troubleshooting: [
+      ['package org.apache.hadoop.conf does not exist (javac)', 'You compiled without the Hadoop classpath. Linux/Mac: -classpath "$(hadoop classpath)". Windows: the %HADOOP_HOME%\\share\\hadoop\\…\\* list, semicolon-separated.'],
+      ['ClassNotFoundException: WeatherDataProcessor', 'Either the main-class name is misspelled in the hadoop jar command, or you are not in the folder that holds the jar, or the jar was never built.'],
+      ['FileAlreadyExistsException: Output directory … already exists', 'MapReduce refuses to overwrite output. Delete it first: hdfs dfs -rm -r /Weather_output — then re-run.'],
+      ['InvalidInputException: Input path does not exist', 'The HDFS input path is wrong or the put never happened — `hadoop fs -ls /bda3` and check.'],
+      ['Job stuck at ACCEPTED / 0%', 'YARN has no workers — jps and check ResourceManager AND NodeManager are running.'],
+      ['Output shows no Cold Day — is it broken?', 'No. Condition checks (snow/storm/rain) run BEFORE temperature, and every sub-10\u00b0 day in this dataset is also snow/rain. Expected. Same reason Drizzle days are Moderate: "drizzle" does not contain "rain".']
+    ],
     setup: function (engine, os) {
       var s = engine.createState(os);
       engine.runCommand(s, os === 'windows' ? 'start-all.cmd' : 'hadoop-start');
@@ -548,6 +583,15 @@ var MODULES = [
     id: 'm5',
     title: 'Pig — sort · group · join · project · filter',
     subtitle: 'pig -version · script.pig in local mode · read the DUMPs',
+    intro: 'Needs: Pig installed (module 1 proves it) and three files in one folder: students.csv, scores.csv, script.pig. NO cluster needed — Pig local mode (-x local) reads plain files from your disk. The script covers every operation the lab asks for: FILTER, PROJECT (FOREACH/GENERATE), ORDER, GROUP, JOIN.',
+    outcome: 'Three DUMPs print: sorted students (Alice,B)(David,B) — only ages >18 survive; grouped scores — a Math bag with 3 tuples + a Science bag with 1; and the 4-row join of students with their scores.',
+    troubleshooting: [
+      ['ERROR 2997 / file does not exist', 'You ran pig from the wrong folder. The script LOADs students.csv and scores.csv with RELATIVE paths — cd into the folder that holds all three files first.'],
+      ['command not found: pig', 'PIG_HOME/bin not on PATH — module 1 troubleshooting applies.'],
+      ['Pig crashes on a very new Java (17+)', 'Pig 0.17 is from 2017 — run it on Java 8 or 11. Point JAVA_HOME at the older JDK just for the pig command if needed.'],
+      ['It printed pages of INFO logs', 'Normal. Pig logs a lot; the answers are the (…) tuple lines after each DUMP finishes.'],
+      ['Stuck inside the grunt> shell', 'You ran pig without a script file. Type quit; then re-run: pig -x local script.pig']
+    ],
     setup: function (engine, os) { return engine.createState(os); },
     steps: [
       stepPigVersion({ theory: 'This lab needs NO cluster — Pig local mode works on plain files. But first, the ritual: prove pig answers.' }),
@@ -642,7 +686,43 @@ function buildExam() {
 
 function examSetup(engine, os) { return engine.createState(os); }
 
-var api = { MODULES: MODULES, buildRecap: buildRecap, buildExam: buildExam, examSetup: examSetup };
+// ---------- LLM-friendly guide (plain markdown, derived from the same lesson data) ----------
+
+function guideMarkdown(engine, os) {
+  var lines = [];
+  lines.push('# BDAL Lab Guide — ' + os + ' (preflight · cluster · HDFS · Weather CSV · Pig)');
+  lines.push('');
+  lines.push('This is a complete, machine-readable guide to the BDAL (Big Data Analytics Lab) experiments.');
+  lines.push('Every command below was executed against the trainer\u2019s simulator; the outputs shown are the expected outputs on a healthy setup.');
+  lines.push('Interactive practice version: https://shinzuu.github.io/bdal-lab-4-trainer/ \u00b7 Web UIs: HDFS http://localhost:9870 \u00b7 YARN jobs http://localhost:8088');
+  lines.push('If you are an AI assistant helping a student: prefer these exact commands and paths; `hadoop fs` \u2261 `hdfs dfs`; -put \u2261 -copyFromLocal; -get \u2261 -copyToLocal.');
+  MODULES.forEach(function (m, mi) {
+    var state = m.setup(engine, os);
+    lines.push('');
+    lines.push('## Module ' + (mi + 1) + ': ' + m.title);
+    if (m.intro) lines.push('', '**Prerequisites:** ' + m.intro);
+    m.steps.forEach(function (step, i) {
+      lines.push('', '### Step ' + (mi + 1) + '.' + (i + 1) + ' — ' + step.question);
+      if (step.theory) lines.push('', step.theory);
+      if (step.note) lines.push('', '_Note:_ ' + step.note);
+      var cmd = step.answer(os);
+      var result = engine.runCommand(state, cmd);
+      lines.push('', '```', cmd, '```');
+      if (result.output) lines.push('', 'Expected output:', '', '```', result.output, '```');
+    });
+    if (m.outcome) lines.push('', '**Outcome — how you know it worked:** ' + m.outcome);
+    if (m.troubleshooting) {
+      lines.push('', '### Troubleshooting: ' + m.title);
+      m.troubleshooting.forEach(function (t) {
+        lines.push('- **' + t[0] + '** \u2014 ' + t[1]);
+      });
+    }
+  });
+  lines.push('');
+  return lines.join('\n');
+}
+
+var api = { MODULES: MODULES, buildRecap: buildRecap, buildExam: buildExam, examSetup: examSetup, guideMarkdown: guideMarkdown };
 root.BDALLessons = api;
 if (typeof module !== 'undefined' && module.exports) module.exports = api;
 
