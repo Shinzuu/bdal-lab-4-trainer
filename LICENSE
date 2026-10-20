@@ -4,3 +4,7 @@ You may view this repository and its contents on GitHub. You may not copy,
 modify, redistribute, sublicense, or use any part of it, for commercial or
 non-commercial purposes, without prior written permission from the copyright
 holder.
+
+Third-party material: the Weather.csv sample rows embedded in this project come
+from hossain-tamim/big_data_analytics_lab and remain under the Apache License 2.0
+(https://www.apache.org/licenses/LICENSE-2.0). This notice does not change their terms.
